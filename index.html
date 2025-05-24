@@ -1,0 +1,1189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Ceramic Fracture Toughness Simulation</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+            background: linear-gradient(135deg, #1e3c72, #2a5298);
+            color: white;
+            overflow-x: hidden;
+            min-height: 100vh;
+            touch-action: manipulation;
+        }
+        .container {
+            display: flex;
+            min-height: 100vh;
+            flex-direction: row;
+        }
+        .control-panel {
+            width: 280px;
+            min-width: 280px;
+            background: rgba(0,0,0,0.8);
+            padding: 15px;
+            overflow-y: auto;
+            border-right: 2px solid #444;
+            -webkit-overflow-scrolling: touch;
+        }
+        .simulation-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+        }
+        .canvas-container {
+            flex: 1;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 10px;
+            overflow: hidden;
+        }
+        canvas {
+            border: 2px solid #444;
+            background: #000;
+            cursor: crosshair;
+            max-width: 100%;
+            max-height: 100%;
+            width: auto;
+            height: auto;
+            touch-action: none;
+        }
+        .stats-panel {
+            height: auto;
+            min-height: 120px;
+            background: rgba(0,0,0,0.9);
+            padding: 10px;
+            border-top: 2px solid #444;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 10px;
+        }
+        
+        /* Mobile-first responsive design */
+        @media (max-width: 768px) {
+            .container {
+                flex-direction: column;
+                height: 100vh;
+            }
+            .control-panel {
+                width: 100%;
+                min-width: unset;
+                height: auto;
+                max-height: 40vh;
+                border-right: none;
+                border-bottom: 2px solid #444;
+                padding: 10px;
+            }
+            .canvas-container {
+                padding: 5px;
+                min-height: 300px;
+            }
+            canvas {
+                width: 100%;
+                height: auto;
+                max-height: 50vh;
+            }
+            .stats-panel {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 8px;
+                padding: 8px;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .control-panel {
+                max-height: 35vh;
+                padding: 8px;
+            }
+            .stats-panel {
+                grid-template-columns: 1fr;
+                min-height: 100px;
+            }
+            canvas {
+                max-height: 40vh;
+            }
+        }
+        
+        /* Tablet landscape */
+        @media (min-width: 769px) and (max-width: 1024px) {
+            .control-panel {
+                width: 250px;
+                min-width: 250px;
+            }
+        }
+        .stat-box {
+            background: rgba(255,255,255,0.1);
+            padding: 8px;
+            border-radius: 8px;
+            text-align: center;
+            min-height: 60px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+        .stat-value {
+            font-size: clamp(16px, 4vw, 24px);
+            font-weight: bold;
+            color: #4CAF50;
+            line-height: 1.2;
+        }
+        .stat-label {
+            font-size: clamp(10px, 2.5vw, 12px);
+            line-height: 1.3;
+            margin-top: 2px;
+        }
+        .control-group {
+            margin-bottom: 15px;
+            padding: 12px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 8px;
+        }
+        .control-group h3 {
+            margin: 0 0 12px 0;
+            color: #4CAF50;
+            border-bottom: 1px solid #444;
+            padding-bottom: 5px;
+            font-size: clamp(14px, 3vw, 16px);
+        }
+        .slider-container {
+            margin: 8px 0;
+        }
+        .slider-container label {
+            display: block;
+            margin-bottom: 4px;
+            font-size: clamp(11px, 2.5vw, 12px);
+            line-height: 1.3;
+        }
+        input[type="range"] {
+            width: 100%;
+            margin: 5px 0;
+            height: 6px;
+            -webkit-appearance: none;
+            appearance: none;
+            background: #333;
+            border-radius: 3px;
+            outline: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: #4CAF50;
+            cursor: pointer;
+            border-radius: 50%;
+        }
+        input[type="range"]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            background: #4CAF50;
+            cursor: pointer;
+            border-radius: 50%;
+            border: none;
+        }
+        .value-display {
+            font-size: clamp(10px, 2vw, 11px);
+            color: #aaa;
+            text-align: right;
+        }
+        button {
+            background: linear-gradient(45deg, #4CAF50, #45a049);
+            color: white;
+            border: none;
+            padding: 12px 15px;
+            border-radius: 8px;
+            cursor: pointer;
+            margin: 5px 0;
+            width: 100%;
+            font-weight: bold;
+            font-size: clamp(12px, 2.5vw, 14px);
+            touch-action: manipulation;
+            transition: all 0.2s ease;
+        }
+        button:hover, button:focus {
+            background: linear-gradient(45deg, #45a049, #4CAF50);
+            transform: translateY(-1px);
+        }
+        button:active {
+            transform: translateY(0);
+        }
+        button:disabled {
+            background: #666;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .legend {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0,0,0,0.9);
+            padding: 8px;
+            border-radius: 5px;
+            font-size: clamp(10px, 2vw, 12px);
+            max-width: 200px;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 3px 0;
+            flex-wrap: wrap;
+        }
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            margin-right: 8px;
+            border: 1px solid #666;
+            flex-shrink: 0;
+        }
+        .mode-selector {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 5px;
+            margin: 10px 0;
+        }
+        .mode-btn {
+            padding: 8px 4px;
+            font-size: clamp(10px, 2vw, 11px);
+            margin: 0;
+        }
+        .mode-btn.active {
+            background: linear-gradient(45deg, #FF6B6B, #FF5252);
+        }
+        
+        /* Touch-friendly improvements */
+        @media (hover: none) and (pointer: coarse) {
+            button {
+                padding: 14px 15px;
+                min-height: 44px;
+            }
+            input[type="range"] {
+                height: 8px;
+            }
+            input[type="range"]::-webkit-slider-thumb {
+                width: 24px;
+                height: 24px;
+            }
+            input[type="range"]::-moz-range-thumb {
+                width: 24px;
+                height: 24px;
+            }
+        }
+        
+        /* High DPI displays */
+        @media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+            canvas {
+                image-rendering: -webkit-optimize-contrast;
+                image-rendering: crisp-edges;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="control-panel">
+            <h2>Fracture Simulation Controls</h2>
+            
+            <div class="control-group">
+                <h3>Material Properties</h3>
+                <div class="slider-container">
+                    <label>Young's Modulus (GPa)</label>
+                    <input type="range" id="youngsModulus" min="50" max="500" value="300" step="10">
+                    <div class="value-display" id="youngsModulusValue">300 GPa</div>
+                </div>
+                <div class="slider-container">
+                    <label>Poisson's Ratio</label>
+                    <input type="range" id="poissonRatio" min="0.1" max="0.4" value="0.25" step="0.01">
+                    <div class="value-display" id="poissonRatioValue">0.25</div>
+                </div>
+                <div class="slider-container">
+                    <label>Fracture Toughness (MPa·m^0.5)</label>
+                    <input type="range" id="fractureToughness" min="1" max="15" value="5" step="0.5">
+                    <div class="value-display" id="fractureToughnessValue">5.0 MPa·m^0.5</div>
+                </div>
+                <div class="slider-container">
+                    <label>Grain Size (μm)</label>
+                    <input type="range" id="grainSize" min="0.5" max="50" value="10" step="0.5">
+                    <div class="value-display" id="grainSizeValue">10.0 μm</div>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <h3>Loading Conditions</h3>
+                <div class="slider-container">
+                    <label>Applied Stress (MPa)</label>
+                    <input type="range" id="appliedStress" min="10" max="500" value="100" step="10">
+                    <div class="value-display" id="appliedStressValue">100 MPa</div>
+                </div>
+                <div class="slider-container">
+                    <label>Loading Rate (MPa/s)</label>
+                    <input type="range" id="loadingRate" min="0.1" max="10" value="1" step="0.1">
+                    <div class="value-display" id="loadingRateValue">1.0 MPa/s</div>
+                </div>
+                <div class="slider-container">
+                    <label>Temperature (°C)</label>
+                    <input type="range" id="temperature" min="20" max="1500" value="25" step="25">
+                    <div class="value-display" id="temperatureValue">25 °C</div>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <h3>Simulation Mode</h3>
+                <div class="mode-selector">
+                    <button class="mode-btn active" id="modeI">Mode I</button>
+                    <button class="mode-btn" id="modeII">Mode II</button>
+                    <button class="mode-btn" id="mixedMode">Mixed</button>
+                    <button class="mode-btn" id="fatigue">Fatigue</button>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <h3>Microstructure</h3>
+                <div class="slider-container">
+                    <label>Porosity (%)</label>
+                    <input type="range" id="porosity" min="0" max="30" value="5" step="1">
+                    <div class="value-display" id="porosityValue">5%</div>
+                </div>
+                <div class="slider-container">
+                    <label>Inclusion Density</label>
+                    <input type="range" id="inclusionDensity" min="0" max="0.2" value="0.05" step="0.01">
+                    <div class="value-display" id="inclusionDensityValue">0.05</div>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <h3>Controls</h3>
+                <button id="startBtn">Start Simulation</button>
+                <button id="pauseBtn" disabled>Pause</button>
+                <button id="resetBtn">Reset</button>
+                <button id="addCrackBtn">Add Initial Crack</button>
+            </div>
+        </div>
+
+        <div class="simulation-area">
+            <div class="canvas-container">
+                <canvas id="simulationCanvas" width="800" height="600"></canvas>
+                <div class="legend">
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #FF0000;"></div>
+                        <span>High Stress (>80% yield)</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #FFFF00;"></div>
+                        <span>Medium Stress (40-80%)</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #00FF00;"></div>
+                        <span>Low Stress (<40%)</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #000000;"></div>
+                        <span>Cracked Material</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #8B4513;"></div>
+                        <span>Inclusions</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="stats-panel">
+                <div class="stat-box">
+                    <div class="stat-value" id="stressIntensity">0.0</div>
+                    <div class="stat-label">Stress Intensity Factor<br>(MPa·m^0.5)</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-value" id="crackLength">0.0</div>
+                    <div class="stat-label">Crack Length<br>(mm)</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-value" id="jIntegral">0.0</div>
+                    <div class="stat-label">J-Integral<br>(J/m²)</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-value" id="energyRelease">0.0</div>
+                    <div class="stat-label">Energy Release Rate<br>(J/m²)</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-value" id="simulationTime">0.0</div>
+                    <div class="stat-label">Simulation Time<br>(seconds)</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-value" id="failureRisk">0%</div>
+                    <div class="stat-label">Failure Risk<br>Assessment</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class CeramicFractureSimulation {
+            constructor() {
+                this.canvas = document.getElementById('simulationCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                
+                // Make canvas responsive
+                this.setupResponsiveCanvas();
+                
+                // Simulation state
+                this.isRunning = false;
+                this.time = 0;
+                this.dt = 0.01;
+                
+                // Material grid - adjust based on screen size
+                this.gridSize = this.getOptimalGridSize();
+                this.gridWidth = Math.floor(this.canvas.width / this.gridSize);
+                this.gridHeight = Math.floor(this.canvas.height / this.gridSize);
+                
+                // Initialize material properties
+                this.initializeMaterial();
+                this.initializeCracks();
+                this.initializeMicrostructure();
+                
+                // Simulation parameters
+                this.currentMode = 'modeI';
+                this.appliedLoad = 0;
+                
+                this.setupEventListeners();
+                this.setupTouchHandling();
+                this.animationId = null;
+                
+                // Handle window resize
+                window.addEventListener('resize', this.handleResize.bind(this));
+                
+                this.render();
+            }
+            
+            setupResponsiveCanvas() {
+                const container = this.canvas.parentElement;
+                const rect = container.getBoundingClientRect();
+                
+                // Set canvas size based on container with device pixel ratio
+                const dpr = window.devicePixelRatio || 1;
+                const maxWidth = Math.min(800, rect.width - 20);
+                const maxHeight = Math.min(600, rect.height - 20);
+                
+                this.canvas.width = maxWidth * dpr;
+                this.canvas.height = maxHeight * dpr;
+                this.canvas.style.width = maxWidth + 'px';
+                this.canvas.style.height = maxHeight + 'px';
+                
+                // Scale context for high DPI displays
+                this.ctx.scale(dpr, dpr);
+                
+                this.width = maxWidth;
+                this.height = maxHeight;
+            }
+            
+            getOptimalGridSize() {
+                // Adjust grid size based on screen size for performance
+                const screenWidth = window.innerWidth;
+                if (screenWidth < 480) return 6;
+                if (screenWidth < 768) return 5;
+                return 4;
+            }
+            
+            handleResize() {
+                // Debounce resize events
+                clearTimeout(this.resizeTimeout);
+                this.resizeTimeout = setTimeout(() => {
+                    this.setupResponsiveCanvas();
+                    this.gridSize = this.getOptimalGridSize();
+                    this.gridWidth = Math.floor(this.width / this.gridSize);
+                    this.gridHeight = Math.floor(this.height / this.gridSize);
+                    this.initializeMaterial();
+                    this.initializeMicrostructure();
+                    this.render();
+                }, 250);
+            }
+            
+            setupTouchHandling() {
+                // Prevent default touch behaviors
+                this.canvas.addEventListener('touchstart', (e) => {
+                    e.preventDefault();
+                    const touch = e.touches[0];
+                    const rect = this.canvas.getBoundingClientRect();
+                    const x = (touch.clientX - rect.left) * (this.width / rect.width);
+                    const y = (touch.clientY - rect.top) * (this.height / rect.height);
+                    this.handleCanvasClick(x, y);
+                }, { passive: false });
+                
+                this.canvas.addEventListener('touchmove', (e) => {
+                    e.preventDefault();
+                }, { passive: false });
+                
+                // Regular mouse events
+                this.canvas.addEventListener('click', (e) => {
+                    const rect = this.canvas.getBoundingClientRect();
+                    const x = (e.clientX - rect.left) * (this.width / rect.width);
+                    const y = (e.clientY - rect.top) * (this.height / rect.height);
+                    this.handleCanvasClick(x, y);
+                });
+            }
+            
+            handleCanvasClick(x, y) {
+                // Add crack at clicked position
+                if (!this.isRunning) {
+                    this.addCrackAtPosition(x, y);
+                }
+            }
+            
+            addCrackAtPosition(x, y) {
+                const gridX = Math.floor(x / this.gridSize);
+                const gridY = Math.floor(y / this.gridSize);
+                
+                if (gridX >= 0 && gridX < this.gridWidth && gridY >= 0 && gridY < this.gridHeight) {
+                    const crack = {
+                        path: [],
+                        tips: []
+                    };
+                    
+                    // Create small initial crack
+                    const crackLength = Math.max(3, Math.floor(15 / this.gridSize));
+                    for (let i = 0; i < crackLength; i++) {
+                        const crackX = Math.min(this.gridWidth - 1, gridX + i);
+                        const crackY = gridY;
+                        
+                        crack.path.push({x: crackX, y: crackY});
+                        this.materialState[crackY][crackX] = 'cracked';
+                        this.damageField[crackY][crackX] = 1.0;
+                    }
+                    
+                    crack.tips.push({
+                        x: Math.min(this.gridWidth - 1, gridX + crackLength - 1),
+                        y: gridY,
+                        angle: 0,
+                        velocity: 0
+                    });
+                    
+                    this.cracks.push(crack);
+                    this.crackTips.push(...crack.tips);
+                    this.render();
+                }
+            }
+            
+            initializeMaterial() {
+                this.stressField = Array(this.gridHeight).fill().map(() => Array(this.gridWidth).fill(0));
+                this.strainField = Array(this.gridHeight).fill().map(() => Array(this.gridWidth).fill(0));
+                this.damageField = Array(this.gridHeight).fill().map(() => Array(this.gridWidth).fill(0));
+                this.materialState = Array(this.gridHeight).fill().map(() => Array(this.gridWidth).fill('intact'));
+                this.grainBoundaries = Array(this.gridHeight).fill().map(() => Array(this.gridWidth).fill(false));
+                
+                // Generate grain structure
+                this.generateGrainStructure();
+            }
+            
+            generateGrainStructure() {
+                const grainSize = parseFloat(document.getElementById('grainSize').value);
+                const grainPixels = Math.max(2, Math.floor(grainSize / 2));
+                
+                for (let y = 0; y < this.gridHeight; y += grainPixels) {
+                    for (let x = 0; x < this.gridWidth; x += grainPixels) {
+                        // Create grain boundaries
+                        if (Math.random() < 0.3) {
+                            for (let dy = 0; dy < grainPixels && y + dy < this.gridHeight; dy++) {
+                                for (let dx = 0; dx < grainPixels && x + dx < this.gridWidth; dx++) {
+                                    if (dx === 0 || dy === 0 || dx === grainPixels - 1 || dy === grainPixels - 1) {
+                                        this.grainBoundaries[y + dy][x + dx] = true;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            
+            initializeCracks() {
+                this.cracks = [];
+                this.crackTips = [];
+            }
+            
+            initializeMicrostructure() {
+                this.inclusions = [];
+                this.pores = [];
+                
+                const inclusionDensity = parseFloat(document.getElementById('inclusionDensity').value);
+                const porosity = parseFloat(document.getElementById('porosity').value) / 100;
+                
+                // Generate inclusions
+                const numInclusions = Math.floor(inclusionDensity * this.gridWidth * this.gridHeight / 100);
+                for (let i = 0; i < numInclusions; i++) {
+                    this.inclusions.push({
+                        x: Math.random() * this.gridWidth,
+                        y: Math.random() * this.gridHeight,
+                        radius: 2 + Math.random() * 4,
+                        stiffness: 0.5 + Math.random() * 1.5
+                    });
+                }
+                
+                // Generate pores
+                const numPores = Math.floor(porosity * this.gridWidth * this.gridHeight / 20);
+                for (let i = 0; i < numPores; i++) {
+                    this.pores.push({
+                        x: Math.random() * this.gridWidth,
+                        y: Math.random() * this.gridHeight,
+                        radius: 1 + Math.random() * 3
+                    });
+                }
+            }
+            
+            addInitialCrack() {
+                const centerX = Math.floor(this.gridWidth / 4);
+                const centerY = Math.floor(this.gridHeight / 2);
+                const crackLength = 20;
+                
+                const crack = {
+                    path: [],
+                    tips: []
+                };
+                
+                // Create horizontal crack
+                for (let i = 0; i < crackLength; i++) {
+                    const x = centerX + i;
+                    const y = centerY + Math.floor((Math.random() - 0.5) * 3);
+                    
+                    if (x < this.gridWidth && y >= 0 && y < this.gridHeight) {
+                        crack.path.push({x, y});
+                        this.materialState[y][x] = 'cracked';
+                        this.damageField[y][x] = 1.0;
+                    }
+                }
+                
+                // Add crack tips
+                crack.tips.push({
+                    x: centerX + crackLength - 1,
+                    y: centerY,
+                    angle: 0,
+                    velocity: 0
+                });
+                
+                this.cracks.push(crack);
+                this.crackTips.push(...crack.tips);
+            }
+            
+            calculateStressField() {
+                const E = parseFloat(document.getElementById('youngsModulus').value) * 1000; // Convert to MPa
+                const nu = parseFloat(document.getElementById('poissonRatio').value);
+                const appliedStress = this.appliedLoad;
+                const temp = parseFloat(document.getElementById('temperature').value);
+                
+                // Temperature effect on modulus
+                const tempFactor = 1 - (temp - 25) * 0.0001;
+                const effectiveE = E * tempFactor;
+                
+                for (let y = 0; y < this.gridHeight; y++) {
+                    for (let x = 0; x < this.gridWidth; x++) {
+                        if (this.materialState[y][x] === 'cracked') {
+                            this.stressField[y][x] = 0;
+                            continue;
+                        }
+                        
+                        let localStress = appliedStress;
+                        
+                        // Stress concentration around crack tips
+                        for (let tip of this.crackTips) {
+                            const dx = x - tip.x;
+                            const dy = y - tip.y;
+                            const r = Math.sqrt(dx * dx + dy * dy);
+                            
+                            if (r < 20 && r > 0.1) {
+                                const theta = Math.atan2(dy, dx) - tip.angle;
+                                const K = this.calculateStressIntensityFactor(tip);
+                                
+                                // Mode I stress field
+                                const stressConcentration = K / Math.sqrt(2 * Math.PI * r) * 
+                                    Math.cos(theta/2) * (1 + Math.sin(theta/2) * Math.sin(3*theta/2));
+                                
+                                localStress += Math.abs(stressConcentration);
+                            }
+                        }
+                        
+                        // Include microstructural effects
+                        localStress *= this.getMicrostructuralFactor(x, y);
+                        
+                        // Grain boundary effects
+                        if (this.grainBoundaries[y][x]) {
+                            localStress *= 0.8; // Grain boundaries can arrest cracks
+                        }
+                        
+                        this.stressField[y][x] = localStress;
+                        this.strainField[y][x] = localStress / effectiveE;
+                    }
+                }
+            }
+            
+            getMicrostructuralFactor(x, y) {
+                let factor = 1.0;
+                
+                // Check for inclusions
+                for (let inclusion of this.inclusions) {
+                    const dx = x - inclusion.x;
+                    const dy = y - inclusion.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    
+                    if (dist < inclusion.radius) {
+                        factor *= inclusion.stiffness;
+                    } else if (dist < inclusion.radius * 2) {
+                        // Stress concentration around inclusions
+                        factor *= 1 + 0.5 / Math.max(0.1, dist - inclusion.radius);
+                    }
+                }
+                
+                // Check for pores
+                for (let pore of this.pores) {
+                    const dx = x - pore.x;
+                    const dy = y - pore.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    
+                    if (dist < pore.radius) {
+                        factor = 0; // No load bearing in pores
+                    } else if (dist < pore.radius * 3) {
+                        // High stress concentration around pores
+                        factor *= 1 + 2.0 / Math.max(0.1, dist - pore.radius);
+                    }
+                }
+                
+                return Math.max(0, Math.min(3.0, factor));
+            }
+            
+            calculateStressIntensityFactor(crackTip) {
+                const sigma = this.appliedLoad;
+                const a = this.getCrackLength(crackTip);
+                const Y = 1.12; // Geometry factor for edge crack
+                
+                return Y * sigma * Math.sqrt(Math.PI * a / 1000); // Convert to proper units
+            }
+            
+            getCrackLength(crackTip) {
+                let maxLength = 0;
+                
+                for (let crack of this.cracks) {
+                    if (crack.tips.includes(crackTip)) {
+                        maxLength = Math.max(maxLength, crack.path.length * this.gridSize / 1000); // Convert to meters
+                    }
+                }
+                
+                return maxLength;
+            }
+            
+            propagateCracks() {
+                const Kc = parseFloat(document.getElementById('fractureToughness').value);
+                const loadingRate = parseFloat(document.getElementById('loadingRate').value);
+                
+                for (let i = 0; i < this.crackTips.length; i++) {
+                    const tip = this.crackTips[i];
+                    const K = this.calculateStressIntensityFactor(tip);
+                    
+                    // Check if crack should propagate
+                    if (K > Kc) {
+                        const crack = this.findCrackForTip(tip);
+                        if (crack) {
+                            this.propagateCrack(crack, tip, K / Kc);
+                        }
+                    }
+                    
+                    // Update crack tip velocity based on loading rate
+                    tip.velocity = Math.min(100, tip.velocity + loadingRate * this.dt);
+                }
+            }
+            
+            findCrackForTip(tip) {
+                for (let crack of this.cracks) {
+                    if (crack.tips.includes(tip)) {
+                        return crack;
+                    }
+                }
+                return null;
+            }
+            
+            propagateCrack(crack, tip, overstress) {
+                const propagationProbability = Math.min(0.1, overstress * 0.02);
+                
+                if (Math.random() < propagationProbability) {
+                    // Determine propagation direction
+                    let angle = tip.angle;
+                    
+                    // Add some randomness and microstructural influence
+                    angle += (Math.random() - 0.5) * 0.2;
+                    
+                    // Check for grain boundary deflection
+                    const nextX = Math.round(tip.x + Math.cos(angle));
+                    const nextY = Math.round(tip.y + Math.sin(angle));
+                    
+                    if (nextX >= 0 && nextX < this.gridWidth && nextY >= 0 && nextY < this.gridHeight) {
+                        if (this.grainBoundaries[nextY][nextX] && Math.random() < 0.7) {
+                            // Crack deflection at grain boundary
+                            angle += (Math.random() - 0.5) * Math.PI / 4;
+                        }
+                        
+                        const newX = Math.round(tip.x + Math.cos(angle));
+                        const newY = Math.round(tip.y + Math.sin(angle));
+                        
+                        if (newX >= 0 && newX < this.gridWidth && newY >= 0 && newY < this.gridHeight &&
+                            this.materialState[newY][newX] !== 'cracked') {
+                            
+                            crack.path.push({x: newX, y: newY});
+                            this.materialState[newY][newX] = 'cracked';
+                            this.damageField[newY][newX] = 1.0;
+                            
+                            // Update crack tip position
+                            tip.x = newX;
+                            tip.y = newY;
+                            tip.angle = angle;
+                        }
+                    }
+                }
+            }
+            
+            calculateJIntegral() {
+                if (this.crackTips.length === 0) return 0;
+                
+                const tip = this.crackTips[0];
+                const E = parseFloat(document.getElementById('youngsModulus').value) * 1000;
+                const nu = parseFloat(document.getElementById('poissonRatio').value);
+                const K = this.calculateStressIntensityFactor(tip);
+                
+                // Plane stress assumption
+                return (K * K) / E;
+            }
+            
+            calculateEnergyReleaseRate() {
+                return this.calculateJIntegral(); // For elastic materials, G = J
+            }
+            
+            assessFailureRisk() {
+                const K = this.crackTips.length > 0 ? this.calculateStressIntensityFactor(this.crackTips[0]) : 0;
+                const Kc = parseFloat(document.getElementById('fractureToughness').value);
+                
+                return Math.min(100, (K / Kc) * 100);
+            }
+            
+            updateSimulation() {
+                if (!this.isRunning) return;
+                
+                this.time += this.dt;
+                
+                // Update applied load
+                const targetStress = parseFloat(document.getElementById('appliedStress').value);
+                const loadingRate = parseFloat(document.getElementById('loadingRate').value);
+                
+                if (this.appliedLoad < targetStress) {
+                    this.appliedLoad = Math.min(targetStress, this.appliedLoad + loadingRate * this.dt);
+                }
+                
+                // Calculate stress fields
+                this.calculateStressField();
+                
+                // Propagate cracks
+                this.propagateCracks();
+                
+                // Update statistics
+                this.updateStatistics();
+             
+             // Check for catastrophic failure
+            const failureRisk = this.assessFailureRisk();
+            if (failureRisk > 95) {
+                this.isRunning = false;
+                document.getElementById('startBtn').disabled = false;
+                document.getElementById('pauseBtn').disabled = true;
+                alert('Catastrophic failure detected! Simulation stopped.');
+            }
+        }
+        
+        updateStatistics() {
+            const K = this.crackTips.length > 0 ? this.calculateStressIntensityFactor(this.crackTips[0]) : 0;
+            const crackLength = this.getTotalCrackLength();
+            const J = this.calculateJIntegral();
+            const G = this.calculateEnergyReleaseRate();
+            const risk = this.assessFailureRisk();
+            
+            document.getElementById('stressIntensity').textContent = K.toFixed(2);
+            document.getElementById('crackLength').textContent = (crackLength * 1000).toFixed(1); // Convert to mm
+            document.getElementById('jIntegral').textContent = J.toFixed(1);
+            document.getElementById('energyRelease').textContent = G.toFixed(1);
+            document.getElementById('simulationTime').textContent = this.time.toFixed(1);
+            document.getElementById('failureRisk').textContent = risk.toFixed(0) + '%';
+            
+            // Color code the failure risk
+            const riskElement = document.getElementById('failureRisk');
+            if (risk < 30) {
+                riskElement.style.color = '#4CAF50';
+            } else if (risk < 70) {
+                riskElement.style.color = '#FFC107';
+            } else {
+                riskElement.style.color = '#F44336';
+            }
+        }
+        
+        getTotalCrackLength() {
+            let totalLength = 0;
+            for (let crack of this.cracks) {
+                totalLength += crack.path.length * this.gridSize / 1000; // Convert to meters
+            }
+            return totalLength;
+        }
+        
+        render() {
+            this.ctx.clearRect(0, 0, this.width, this.height);
+            
+            // Draw material grid with stress visualization
+            for (let y = 0; y < this.gridHeight; y++) {
+                for (let x = 0; x < this.gridWidth; x++) {
+                    const stress = this.stressField[y][x];
+                    const maxStress = Math.max(1, parseFloat(document.getElementById('appliedStress').value));
+                    const normalizedStress = Math.min(1, Math.max(0, stress / maxStress));
+                    
+                    let color;
+                    if (this.materialState[y][x] === 'cracked') {
+                        color = '#000000';
+                    } else if (normalizedStress > 0.8) {
+                        const intensity = Math.floor(255 * normalizedStress);
+                        color = `rgb(${intensity}, ${Math.floor(100 * (1 - normalizedStress))}, 0)`; // Red
+                    } else if (normalizedStress > 0.4) {
+                        const intensity = Math.floor(255 * normalizedStress);
+                        color = `rgb(${intensity}, 255, 0)`; // Yellow
+                    } else {
+                        const intensity = Math.floor(255 * (0.2 + normalizedStress * 0.8));
+                        color = `rgb(0, ${intensity}, 0)`; // Green
+                    }
+                    
+                    this.ctx.fillStyle = color;
+                    this.ctx.fillRect(x * this.gridSize, y * this.gridSize, this.gridSize, this.gridSize);
+                }
+            }
+            
+            // Draw grain boundaries
+            this.ctx.strokeStyle = '#444444';
+            this.ctx.lineWidth = 0.5;
+            for (let y = 0; y < this.gridHeight; y++) {
+                for (let x = 0; x < this.gridWidth; x++) {
+                    if (this.grainBoundaries[y][x]) {
+                        this.ctx.strokeRect(x * this.gridSize, y * this.gridSize, this.gridSize, this.gridSize);
+                    }
+                }
+            }
+            
+            // Draw inclusions
+            this.ctx.fillStyle = '#8B4513';
+            for (let inclusion of this.inclusions) {
+                this.ctx.beginPath();
+                this.ctx.arc(inclusion.x * this.gridSize, inclusion.y * this.gridSize, 
+                           inclusion.radius * this.gridSize, 0, 2 * Math.PI);
+                this.ctx.fill();
+            }
+            
+            // Draw pores
+            this.ctx.fillStyle = '#333333';
+            for (let pore of this.pores) {
+                this.ctx.beginPath();
+                this.ctx.arc(pore.x * this.gridSize, pore.y * this.gridSize, 
+                           pore.radius * this.gridSize, 0, 2 * Math.PI);
+                this.ctx.fill();
+            }
+            
+            // Draw cracks with enhanced visualization
+            this.ctx.strokeStyle = '#FF0000';
+            this.ctx.lineWidth = 2;
+            for (let crack of this.cracks) {
+                if (crack.path.length > 1) {
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(crack.path[0].x * this.gridSize + this.gridSize/2, 
+                                  crack.path[0].y * this.gridSize + this.gridSize/2);
+                    
+                    for (let i = 1; i < crack.path.length; i++) {
+                        this.ctx.lineTo(crack.path[i].x * this.gridSize + this.gridSize/2, 
+                                      crack.path[i].y * this.gridSize + this.gridSize/2);
+                    }
+                    this.ctx.stroke();
+                }
+            }
+            
+            // Draw crack tips
+            this.ctx.fillStyle = '#FF6B6B';
+            for (let tip of this.crackTips) {
+                this.ctx.beginPath();
+                this.ctx.arc(tip.x * this.gridSize + this.gridSize/2, 
+                           tip.y * this.gridSize + this.gridSize/2, 3, 0, 2 * Math.PI);
+                this.ctx.fill();
+                
+                // Draw crack tip direction indicator
+                this.ctx.strokeStyle = '#FF6B6B';
+                this.ctx.lineWidth = 2;
+                this.ctx.beginPath();
+                const tipX = tip.x * this.gridSize + this.gridSize/2;
+                const tipY = tip.y * this.gridSize + this.gridSize/2;
+                this.ctx.moveTo(tipX, tipY);
+                this.ctx.lineTo(tipX + Math.cos(tip.angle) * 10, tipY + Math.sin(tip.angle) * 10);
+                this.ctx.stroke();
+            }
+            
+            // Draw stress field visualization around crack tips
+            if (this.crackTips.length > 0) {
+                this.ctx.strokeStyle = 'rgba(255, 255, 0, 0.3)';
+                this.ctx.lineWidth = 1;
+                for (let tip of this.crackTips) {
+                    const tipX = tip.x * this.gridSize + this.gridSize/2;
+                    const tipY = tip.y * this.gridSize + this.gridSize/2;
+                    
+                    // Draw stress concentration zones
+                    for (let r = 10; r <= 30; r += 10) {
+                        this.ctx.beginPath();
+                        this.ctx.arc(tipX, tipY, r, 0, 2 * Math.PI);
+                        this.ctx.stroke();
+                    }
+                }
+            }
+        }
+        
+        setupEventListeners() {
+            // Material property sliders
+            const sliders = ['youngsModulus', 'poissonRatio', 'fractureToughness', 'grainSize',
+                           'appliedStress', 'loadingRate', 'temperature', 'porosity', 'inclusionDensity'];
+            
+            sliders.forEach(id => {
+                const slider = document.getElementById(id);
+                const valueDisplay = document.getElementById(id + 'Value');
+                
+                slider.addEventListener('input', () => {
+                    this.updateSliderDisplay(id, slider.value);
+                    if (!this.isRunning) {
+                        this.updateMaterialProperties();
+                    }
+                });
+                
+                // Initialize display
+                this.updateSliderDisplay(id, slider.value);
+            });
+            
+            // Control buttons
+            document.getElementById('startBtn').addEventListener('click', () => this.startSimulation());
+            document.getElementById('pauseBtn').addEventListener('click', () => this.pauseSimulation());
+            document.getElementById('resetBtn').addEventListener('click', () => this.resetSimulation());
+            document.getElementById('addCrackBtn').addEventListener('click', () => this.addInitialCrack());
+            
+            // Mode selection buttons
+            const modeButtons = ['modeI', 'modeII', 'mixedMode', 'fatigue'];
+            modeButtons.forEach(mode => {
+                document.getElementById(mode).addEventListener('click', () => this.setMode(mode));
+            });
+        }
+        
+        updateSliderDisplay(id, value) {
+            const valueDisplay = document.getElementById(id + 'Value');
+            
+            switch(id) {
+                case 'youngsModulus':
+                    valueDisplay.textContent = value + ' GPa';
+                    break;
+                case 'poissonRatio':
+                    valueDisplay.textContent = parseFloat(value).toFixed(2);
+                    break;
+                case 'fractureToughness':
+                    valueDisplay.textContent = parseFloat(value).toFixed(1) + ' MPa·m^0.5';
+                    break;
+                case 'grainSize':
+                    valueDisplay.textContent = parseFloat(value).toFixed(1) + ' μm';
+                    break;
+                case 'appliedStress':
+                    valueDisplay.textContent = value + ' MPa';
+                    break;
+                case 'loadingRate':
+                    valueDisplay.textContent = parseFloat(value).toFixed(1) + ' MPa/s';
+                    break;
+                case 'temperature':
+                    valueDisplay.textContent = value + ' °C';
+                    break;
+                case 'porosity':
+                    valueDisplay.textContent = value + '%';
+                    break;
+                case 'inclusionDensity':
+                    valueDisplay.textContent = parseFloat(value).toFixed(2);
+                    break;
+            }
+        }
+        
+        updateMaterialProperties() {
+            this.initializeMaterial();
+            this.initializeMicrostructure();
+            // Always update stress field when properties change
+            this.calculateStressField();
+            this.render();
+        }
+        
+        setMode(mode) {
+            // Remove active class from all mode buttons
+            const modeButtons = ['modeI', 'modeII', 'mixedMode', 'fatigue'];
+            modeButtons.forEach(id => {
+                document.getElementById(id).classList.remove('active');
+            });
+            
+            // Add active class to selected mode
+            document.getElementById(mode).classList.add('active');
+            this.currentMode = mode;
+            
+            // Reset simulation for new mode
+            if (this.isRunning) {
+                this.pauseSimulation();
+            }
+        }
+        
+        startSimulation() {
+            this.isRunning = true;
+            document.getElementById('startBtn').disabled = true;
+            document.getElementById('pauseBtn').disabled = false;
+            
+            this.animationLoop();
+        }
+        
+        pauseSimulation() {
+            this.isRunning = false;
+            document.getElementById('startBtn').disabled = false;
+            document.getElementById('pauseBtn').disabled = true;
+            
+            if (this.animationId) {
+                cancelAnimationFrame(this.animationId);
+            }
+        }
+        
+        resetSimulation() {
+            this.pauseSimulation();
+            this.time = 0;
+            this.appliedLoad = 0;
+            this.initializeMaterial();
+            this.initializeCracks();
+            this.initializeMicrostructure();
+            this.updateStatistics();
+            this.render();
+        }
+        
+        animationLoop() {
+            if (!this.isRunning) return;
+            
+            this.updateSimulation();
+            this.render();
+            
+            this.animationId = requestAnimationFrame(() => this.animationLoop());
+        }
+    }
+    
+    // Initialize simulation when page loads
+    document.addEventListener('DOMContentLoaded', () => {
+        const simulation = new CeramicFractureSimulation();
+        
+        // Force initial render with stress field
+        setTimeout(() => {
+            simulation.calculateStressField();
+            simulation.render();
+        }, 100);
+    });
+    </script>
+</body>
+</html>
